@@ -128,6 +128,8 @@ function hasKingCaptureFrom(game, row, col) {
   for (const { dr, dc } of directions) {
     let distance = 1;
     let foundEnemy = false;
+    let enemyRow = -1;
+    let enemyCol = -1;
 
     // Scan along the diagonal
     while (true) {
@@ -143,9 +145,19 @@ function hasKingCaptureFrom(game, row, col) {
       if (checkPiece === null) {
         // Empty square
         if (foundEnemy) {
-          // We found an enemy and now found an empty square beyond it
-          // This is a valid capture opportunity
-          return true;
+          // We already jumped an enemy, check if we can land here
+          if (
+            canKingLandAfterCapture(
+              board,
+              checkR,
+              checkC,
+              piece,
+              enemyRow,
+              enemyCol
+            )
+          ) {
+            return true; // Valid capture landing spot
+          }
         }
       } else if (checkPiece.toLowerCase() === piece.toLowerCase()) {
         // Our own piece blocks the path
@@ -157,7 +169,8 @@ function hasKingCaptureFrom(game, row, col) {
           break;
         }
         foundEnemy = true;
-        // Continue to see if there's an empty square beyond
+        enemyRow = checkR;
+        enemyCol = checkC;
       }
 
       distance++;
@@ -165,6 +178,54 @@ function hasKingCaptureFrom(game, row, col) {
   }
 
   return false;
+}
+
+function canKingLandAfterCapture(board, landR, landC, piece, jumpedR, jumpedC) {
+  // Check all 4 diagonal directions from landing position
+  const directions = [
+    { dr: -1, dc: -1 },
+    { dr: -1, dc: 1 },
+    { dr: 1, dc: -1 },
+    { dr: 1, dc: 1 },
+  ];
+
+  for (const { dr, dc } of directions) {
+    // Check the first square in this direction
+    const check1R = landR + dr;
+    const check1C = landC + dc;
+
+    if (check1R >= 0 && check1R < 8 && check1C >= 0 && check1C < 8) {
+      if (check1R === jumpedR && check1C === jumpedC) {
+        // This is the jumped piece, skip it
+        continue;
+      }
+
+      const piece1 = board[check1R][check1C];
+      if (piece1 && piece1.toLowerCase() !== piece.toLowerCase()) {
+        // Enemy at distance 1 - cannot land
+        return false;
+      }
+    }
+
+    // Check the second square in this direction
+    const check2R = landR + dr * 2;
+    const check2C = landC + dc * 2;
+
+    if (check2R >= 0 && check2R < 8 && check2C >= 0 && check2C < 8) {
+      if (check2R === jumpedR && check2C === jumpedC) {
+        // This is the jumped piece, skip it
+        continue;
+      }
+
+      const piece2 = board[check2R][check2C];
+      if (piece2 && piece2.toLowerCase() !== piece.toLowerCase()) {
+        // Enemy at distance 2 - cannot land
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 function getRoom(roomId) {
@@ -218,8 +279,7 @@ function playerHasAnyCapture(game, playerColor) {
 
 function isValidMove(game, from, to, playerColor) {
   const { board, currentPlayer, status, mustContinueFrom } = game;
-  console.log("Validating move:", from, to, "for player", playerColor);
-
+  console.log(game, "Validating move:", from, to, "for player", playerColor);
   if (status !== "playing") return false;
   if (currentPlayer !== playerColor) return false;
 
@@ -361,9 +421,8 @@ function isValidKingMove(game, from, to, piece, mustContinueFrom) {
 
   // If we found an enemy, this is a capture move
   if (foundEnemy) {
-    // King can land on any empty square after the captured piece
-    // Just verify the path after the enemy is clear (already checked above)
-    return true;
+    // Check if we can land at the destination after capturing
+    return canKingLandAfterCapture(board, tr, tc, piece, enemyRow, enemyCol);
   } else {
     // This is a simple move (no capture)
     if (mustContinueFrom) {
@@ -373,105 +432,6 @@ function isValidKingMove(game, from, to, piece, mustContinueFrom) {
     // King can move any number of empty squares diagonally
     return true;
   }
-}
-
-function checkGameEnd(game) {
-  const { board } = game;
-
-  // Count pieces for each player
-  let whitePieces = 0;
-  let blackPieces = 0;
-
-  for (let row = 0; row < 8; row++) {
-    for (let col = 0; col < 8; col++) {
-      const piece = board[row][col];
-      if (piece) {
-        if (piece.toLowerCase() === "w") whitePieces++;
-        if (piece.toLowerCase() === "b") blackPieces++;
-      }
-    }
-  }
-
-  // Check if either player has no pieces left
-  if (whitePieces === 0) {
-    game.status = "finished";
-    game.winner = "b";
-    return true;
-  }
-
-  if (blackPieces === 0) {
-    game.status = "finished";
-    game.winner = "w";
-    return true;
-  }
-
-  // Check if current player has no valid moves
-  const currentPlayer = game.currentPlayer;
-  const pieces = getAllPlayerPieces(board, currentPlayer);
-
-  let hasValidMove = false;
-
-  for (const { row, col } of pieces) {
-    // Check all possible moves for this piece
-    const directions = [
-      { dr: -1, dc: -1 },
-      { dr: -1, dc: 1 },
-      { dr: 1, dc: -1 },
-      { dr: 1, dc: 1 },
-    ];
-
-    const piece = board[row][col];
-    const isKing = piece === piece.toUpperCase();
-
-    for (const { dr, dc } of directions) {
-      if (isKing) {
-        // King can move multiple squares
-        for (let dist = 1; dist < 8; dist++) {
-          const tr = row + dr * dist;
-          const tc = col + dc * dist;
-
-          if (tr < 0 || tr >= 8 || tc < 0 || tc >= 8) break;
-
-          if (
-            isValidMove(game, { row, col }, { row: tr, col: tc }, currentPlayer)
-          ) {
-            hasValidMove = true;
-            break;
-          }
-
-          // If we hit a piece, stop checking this direction
-          if (board[tr][tc] !== null) break;
-        }
-      } else {
-        // Regular piece - check 1 and 2 squares
-        for (let dist = 1; dist <= 2; dist++) {
-          const tr = row + dr * dist;
-          const tc = col + dc * dist;
-
-          if (tr < 0 || tr >= 8 || tc < 0 || tc >= 8) continue;
-
-          if (
-            isValidMove(game, { row, col }, { row: tr, col: tc }, currentPlayer)
-          ) {
-            hasValidMove = true;
-            break;
-          }
-        }
-      }
-
-      if (hasValidMove) break;
-    }
-
-    if (hasValidMove) break;
-  }
-
-  if (!hasValidMove) {
-    game.status = "finished";
-    game.winner = currentPlayer === "w" ? "b" : "w";
-    return true;
-  }
-
-  return false;
 }
 
 function applyMove(game, from, to) {
@@ -485,6 +445,7 @@ function applyMove(game, from, to) {
   const dr = tr - fr;
   const dc = tc - fc;
   const absDr = Math.abs(dr);
+  const absDc = Math.abs(dc);
 
   let didCapture = false;
 
@@ -508,7 +469,6 @@ function applyMove(game, from, to) {
     }
   } else {
     // Regular piece capture
-    const absDc = Math.abs(tc - fc);
     if (absDr === 2 && absDc === 2) {
       const mr = fr + dr / 2;
       const mc = fc + dc / 2;
@@ -529,9 +489,6 @@ function applyMove(game, from, to) {
     game.mustContinueFrom = null;
     game.currentPlayer = game.currentPlayer === "w" ? "b" : "w";
   }
-
-  // Check if game has ended
-  checkGameEnd(game);
 }
 
 // ---------- Socket.IO events ----------
