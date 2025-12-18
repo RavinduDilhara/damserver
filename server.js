@@ -375,105 +375,6 @@ function isValidKingMove(game, from, to, piece, mustContinueFrom) {
   }
 }
 
-function checkGameEnd(game) {
-  const { board } = game;
-
-  // Count pieces for each player
-  let whitePieces = 0;
-  let blackPieces = 0;
-
-  for (let row = 0; row < 8; row++) {
-    for (let col = 0; col < 8; col++) {
-      const piece = board[row][col];
-      if (piece) {
-        if (piece.toLowerCase() === "w") whitePieces++;
-        if (piece.toLowerCase() === "b") blackPieces++;
-      }
-    }
-  }
-
-  // Check if either player has no pieces left
-  if (whitePieces === 0) {
-    game.status = "finished";
-    game.winner = "b";
-    return true;
-  }
-
-  if (blackPieces === 0) {
-    game.status = "finished";
-    game.winner = "w";
-    return true;
-  }
-
-  // Check if current player has no valid moves
-  const currentPlayer = game.currentPlayer;
-  const pieces = getAllPlayerPieces(board, currentPlayer);
-
-  let hasValidMove = false;
-
-  for (const { row, col } of pieces) {
-    // Check all possible moves for this piece
-    const directions = [
-      { dr: -1, dc: -1 },
-      { dr: -1, dc: 1 },
-      { dr: 1, dc: -1 },
-      { dr: 1, dc: 1 },
-    ];
-
-    const piece = board[row][col];
-    const isKing = piece === piece.toUpperCase();
-
-    for (const { dr, dc } of directions) {
-      if (isKing) {
-        // King can move multiple squares
-        for (let dist = 1; dist < 8; dist++) {
-          const tr = row + dr * dist;
-          const tc = col + dc * dist;
-
-          if (tr < 0 || tr >= 8 || tc < 0 || tc >= 8) break;
-
-          if (
-            isValidMove(game, { row, col }, { row: tr, col: tc }, currentPlayer)
-          ) {
-            hasValidMove = true;
-            break;
-          }
-
-          // If we hit a piece, stop checking this direction
-          if (board[tr][tc] !== null) break;
-        }
-      } else {
-        // Regular piece - check 1 and 2 squares
-        for (let dist = 1; dist <= 2; dist++) {
-          const tr = row + dr * dist;
-          const tc = col + dc * dist;
-
-          if (tr < 0 || tr >= 8 || tc < 0 || tc >= 8) continue;
-
-          if (
-            isValidMove(game, { row, col }, { row: tr, col: tc }, currentPlayer)
-          ) {
-            hasValidMove = true;
-            break;
-          }
-        }
-      }
-
-      if (hasValidMove) break;
-    }
-
-    if (hasValidMove) break;
-  }
-
-  if (!hasValidMove) {
-    game.status = "finished";
-    game.winner = currentPlayer === "w" ? "b" : "w";
-    return true;
-  }
-
-  return false;
-}
-
 function applyMove(game, from, to) {
   const { board } = game;
   const { row: fr, col: fc } = from;
@@ -529,9 +430,6 @@ function applyMove(game, from, to) {
     game.mustContinueFrom = null;
     game.currentPlayer = game.currentPlayer === "w" ? "b" : "w";
   }
-
-  // Check if game has ended
-  checkGameEnd(game);
 }
 
 // ---------- Socket.IO events ----------
