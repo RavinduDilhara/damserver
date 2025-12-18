@@ -279,6 +279,7 @@ function playerHasAnyCapture(game, playerColor) {
 
 function isValidMove(game, from, to, playerColor) {
   const { board, currentPlayer, status, mustContinueFrom } = game;
+  console.log(game, "Validating move:", from, to, "for player", playerColor);
   if (status !== "playing") return false;
   if (currentPlayer !== playerColor) return false;
 
